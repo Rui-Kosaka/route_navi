@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>駅間ルートナビ</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <div class="header-inner">
+        <h1>駅間ルートナビ</h1>
+      </div>
+    </header>
+
+    <main class="main">
+      <section class="search-section">
+        <label for="departure-input" class="label">出発駅</label>
+        <div class="input-wrapper">
+          <div class="input-row">
+            <input type="text" id="departure-input" placeholder="駅名を入力（例：新宿、東京）" autocomplete="off">
+          </div>
+          <button type="button" id="departure-clear-btn" class="clear-btn" aria-label="出発駅をクリア">&times;</button>
+          <ul id="departure-suggestions" class="suggestions"></ul>
+        </div>
+
+        <div class="arrow-divider">&#x25BC;</div>
+
+        <label for="destination-input" class="label">到着駅</label>
+        <div class="input-wrapper">
+          <div class="input-row">
+            <input type="text" id="destination-input" placeholder="駅名を入力（例：渋谷、品川）" autocomplete="off">
+          </div>
+          <button type="button" id="destination-clear-btn" class="clear-btn" aria-label="到着駅をクリア">&times;</button>
+          <ul id="destination-suggestions" class="suggestions"></ul>
+        </div>
+
+        <button type="button" id="search-btn" class="search-btn">経路を検索</button>
+      </section>
+
+      <section id="results" class="results"></section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
