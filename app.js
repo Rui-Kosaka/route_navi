@@ -600,6 +600,112 @@ function createRouteMapSVG(segments, destination, departure) {
   return svg;
 }
 
+// 路線図の拡大・縮小・移動（ページ全体ではなく地図だけを操作）
+const MAP_MIN_SCALE = 1;
+const MAP_MAX_SCALE = 8;
+
+function createZoomableRouteMap(segments, destination, departure) {
+  const svg = createRouteMapSVG(segments, destination, departure);
+
+  // defs 以外の描画内容をまとめて拡大・移動の対象にする
+  const viewport = svgEl('g', { class:'route-map-viewport' });
+  [...svg.childNodes].forEach(node => {
+    if (node.nodeName !== 'defs') viewport.appendChild(node);
+  });
+  svg.appendChild(viewport);
+
+  const view = { scale:1, x:0, y:0 };
+
+  function applyView() {
+    viewport.setAttribute('transform', 'translate(' + view.x + ' ' + view.y + ') scale(' + view.scale + ')');
+    svg.classList.toggle('zoomed', view.scale > MAP_MIN_SCALE);
+  }
+
+  // クライアント座標を SVG の viewBox 座標へ変換
+  function toSvgPoint(clientX, clientY) {
+    const ctm = svg.getScreenCTM();
+    if (!ctm) return null;
+    const point = svg.createSVGPoint();
+    point.x = clientX;
+    point.y = clientY;
+    return point.matrixTransform(ctm.inverse());
+  }
+
+  // 指定した点を固定したまま拡大率を変更する
+  function zoomTo(nextScale, focusX, focusY) {
+    const scale = Math.min(MAP_MAX_SCALE, Math.max(MAP_MIN_SCALE, nextScale));
+    if (scale === view.scale) return;
+    const ratio = scale / view.scale;
+    view.x = focusX - ratio * (focusX - view.x);
+    view.y = focusY - ratio * (focusY - view.y);
+    view.scale = scale;
+    if (view.scale === MAP_MIN_SCALE) { view.x = 0; view.y = 0; }
+    applyView();
+  }
+
+  function zoomByStep(factor) {
+    const box = svg.viewBox.baseVal;
+    zoomTo(view.scale * factor, box.width / 2, box.height / 2);
+  }
+
+  function resetView() {
+    view.scale = 1;
+    view.x = 0;
+    view.y = 0;
+    applyView();
+  }
+
+  svg.addEventListener('wheel', event => {
+    event.preventDefault();
+    const focus = toSvgPoint(event.clientX, event.clientY);
+    if (!focus) return;
+    zoomTo(view.scale * (event.deltaY < 0 ? 1.2 : 1 / 1.2), focus.x, focus.y);
+  }, { passive:false });
+
+  svg.addEventListener('dblclick', resetView);
+
+  let dragPointerId = null;
+  let dragOrigin = null;
+
+  svg.addEventListener('pointerdown', event => {
+    if (view.scale === MAP_MIN_SCALE || !event.isPrimary) return;
+    dragPointerId = event.pointerId;
+    dragOrigin = { clientX:event.clientX, clientY:event.clientY, x:view.x, y:view.y };
+    svg.setPointerCapture(event.pointerId);
+    svg.classList.add('dragging');
+  });
+
+  svg.addEventListener('pointermove', event => {
+    if (dragPointerId !== event.pointerId || !dragOrigin) return;
+    const from = toSvgPoint(dragOrigin.clientX, dragOrigin.clientY);
+    const to = toSvgPoint(event.clientX, event.clientY);
+    if (!from || !to) return;
+    view.x = dragOrigin.x + (to.x - from.x);
+    view.y = dragOrigin.y + (to.y - from.y);
+    applyView();
+  });
+
+  function endDrag(event) {
+    if (dragPointerId !== event.pointerId) return;
+    if (svg.hasPointerCapture(event.pointerId)) svg.releasePointerCapture(event.pointerId);
+    dragPointerId = null;
+    dragOrigin = null;
+    svg.classList.remove('dragging');
+  }
+
+  svg.addEventListener('pointerup', endDrag);
+  svg.addEventListener('pointercancel', endDrag);
+
+  applyView();
+
+  return {
+    svg,
+    zoomIn: () => zoomByStep(1.4),
+    zoomOut: () => zoomByStep(1 / 1.4),
+    resetView
+  };
+}
+
 // ---------- ルックアップ構築 ----------
 const lineMap = {};          // lineId -> line object
 const lineStationIdx = {};   // lineId -> { stationName -> index }
@@ -1034,10 +1140,37 @@ document.addEventListener('DOMContentLoaded', () => {
       mapCard.className = 'route-card route-map-card';
       const mapHeader = document.createElement('div');
       mapHeader.className = 'route-map-header';
-      mapHeader.textContent = '路線図';
+
+      const mapTitle = document.createElement('span');
+      mapTitle.textContent = '路線図';
+      mapHeader.appendChild(mapTitle);
+
+      const zoomControls = document.createElement('div');
+      zoomControls.className = 'map-zoom-controls';
+      mapHeader.appendChild(zoomControls);
       mapCard.appendChild(mapHeader);
-      const mapSvg = createRouteMapSVG(bestRoute.segments, destination, departure);
-      mapCard.appendChild(mapSvg);
+
+      let currentMap = createZoomableRouteMap(bestRoute.segments, destination, departure);
+      mapCard.appendChild(currentMap.svg);
+
+      function addZoomButton(label, ariaLabel, action) {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'map-zoom-btn';
+        button.textContent = label;
+        button.setAttribute('aria-label', ariaLabel);
+        button.addEventListener('click', () => action());
+        zoomControls.appendChild(button);
+        return button;
+      }
+
+      addZoomButton('－', '路線図を縮小', () => currentMap.zoomOut());
+      addZoomButton('＋', '路線図を拡大', () => currentMap.zoomIn());
+      addZoomButton('リセット', '路線図の表示倍率をリセット', () => currentMap.resetView());
+
+      const zoomHint = document.createElement('p');
+      zoomHint.className = 'map-zoom-hint';
+      zoomHint.textContent = '地図上でマウスホイール：拡大・縮小／ドラッグ：移動／ダブルクリック：リセット';
 
       if (routes.length > 1) {
         const switcher = document.createElement('div');
@@ -1048,15 +1181,18 @@ document.addEventListener('DOMContentLoaded', () => {
           button.className = 'map-switch-btn' + (index === 0 ? ' active' : '');
           button.textContent = (index === 0 ? '最短 ' : 'ルート ' + (index + 1) + ' ') + route.totalTime + '分';
           button.addEventListener('click', () => {
-            mapCard.querySelector('.route-map-svg')?.remove();
-            const selectedMap = createRouteMapSVG(route.segments, destination, departure);
-            mapCard.insertBefore(selectedMap, switcher);
+            currentMap.svg.remove();
+            currentMap = createZoomableRouteMap(route.segments, destination, departure);
+            mapCard.insertBefore(currentMap.svg, zoomHint);
             switcher.querySelectorAll('.map-switch-btn').forEach(item => item.classList.remove('active'));
             button.classList.add('active');
           });
           switcher.appendChild(button);
         });
+        mapCard.appendChild(zoomHint);
         mapCard.appendChild(switcher);
+      } else {
+        mapCard.appendChild(zoomHint);
       }
       resultsEl.appendChild(mapCard);
     }
