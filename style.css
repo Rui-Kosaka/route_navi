@@ -312,6 +312,74 @@ body {
 .search-btn:hover { background: #1d4ed8; }
 .search-btn:active { transform: scale(.985); }
 
+/* ---------- Tourist Spots ---------- */
+.tourist-spots {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 14px;
+}
+.tourist-spots summary {
+  color: var(--navy);
+  cursor: pointer;
+  font-size: .88rem;
+  font-weight: 600;
+}
+.tourist-spots-description,
+.tourist-spots-source {
+  color: var(--text-sub);
+  font-size: .72rem;
+  line-height: 1.5;
+}
+.tourist-spots-description {
+  margin: 10px 0 8px;
+}
+.tourist-spots-source {
+  margin-top: 8px;
+}
+.tourist-spots-source a {
+  color: var(--accent);
+}
+.tourist-spot-list {
+  display: grid;
+  gap: 6px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+.tourist-spot-button {
+  align-items: center;
+  background: #fafbfc;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+  display: flex;
+  font-family: inherit;
+  gap: 8px;
+  justify-content: space-between;
+  padding: 7px 9px;
+  text-align: left;
+  transition: background .15s, border-color .15s;
+  width: 100%;
+}
+.tourist-spot-button:hover,
+.tourist-spot-button:focus-visible {
+  background: var(--accent-light);
+  border-color: var(--accent);
+  outline: none;
+}
+.tourist-spot-name {
+  font-size: .78rem;
+  font-weight: 500;
+}
+.tourist-spot-station {
+  color: var(--text-sub);
+  flex-shrink: 0;
+  font-size: .7rem;
+}
+.tourist-spot-list::-webkit-scrollbar { width: 6px; }
+.tourist-spot-list::-webkit-scrollbar-thumb { background: #c8cdd4; border-radius: 3px; }
+
 /* ---------- Arrow between input and dest ---------- */
 .arrow-divider {
   display: flex;

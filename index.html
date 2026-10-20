@@ -14,7 +14,7 @@
     <header class="header">
       <div class="header-inner">
         <h1>駅間ルートナビ</h1>
-        <p class="updated-at">更新日時：2026年10月20日 14時49分</p>
+        <p class="updated-at">更新日時：2026年10月20日 15時28分</p>
       </div>
     </header>
 
@@ -41,6 +41,13 @@
         </div>
 
         <button type="button" id="search-btn" class="search-btn">経路を検索</button>
+
+        <details class="tourist-spots">
+          <summary>主要な観光地から到着駅を選ぶ</summary>
+          <p class="tourist-spots-description">観光地を選ぶと、最寄り駅が到着駅に入力されます。</p>
+          <div id="tourist-spot-list" class="tourist-spot-list"></div>
+          <p class="tourist-spots-source">参考：<a href="https://www.tokyometro.jp/station/202006_shisetsu_ja.pdf" target="_blank" rel="noopener noreferrer">東京メトロ・都営地下鉄路線図</a></p>
+        </details>
       </section>
 
       <section id="results" class="results"></section>

@@ -613,6 +613,46 @@ LINES.forEach(l => {
 // 全駅名（重複排除・ソート済み）
 const allStationNames = [...new Set(LINES.flatMap(l => l.stations))].sort((a,b) => a.localeCompare(b,'ja'));
 
+// 東京メトロ・都営地下鉄路線図に掲載されている主な観光地と最寄り駅
+const TOURIST_SPOTS = [
+  { name:'東京スカイツリータウン', station:'押上', category:'展望・街歩き' },
+  { name:'浅草寺', station:'浅草', category:'寺社・歴史' },
+  { name:'かっぱ橋道具街', station:'田原町', category:'買い物' },
+  { name:'アメ横商店街', station:'上野', category:'買い物' },
+  { name:'上野恩賜公園', station:'上野', category:'公園・庭園' },
+  { name:'湯島天満宮', station:'湯島', category:'寺社・歴史' },
+  { name:'神田明神', station:'御茶ノ水', category:'寺社・歴史' },
+  { name:'東京ドームシティ', station:'後楽園', category:'レジャー' },
+  { name:'小石川後楽園', station:'飯田橋', category:'公園・庭園' },
+  { name:'東京大神宮', station:'飯田橋', category:'寺社・歴史' },
+  { name:'日本武道館', station:'九段下', category:'文化・施設' },
+  { name:'皇居', station:'二重橋前', category:'寺社・歴史' },
+  { name:'日本橋', station:'日本橋', category:'歴史・街歩き' },
+  { name:'東京駅', station:'東京', category:'歴史・街歩き' },
+  { name:'歌舞伎座', station:'東銀座', category:'文化・施設' },
+  { name:'築地場外市場', station:'築地', category:'グルメ' },
+  { name:'浜離宮恩賜庭園', station:'汐留', category:'公園・庭園' },
+  { name:'東京タワー', station:'神谷町', category:'展望・街歩き' },
+  { name:'増上寺', station:'大門', category:'寺社・歴史' },
+  { name:'国会議事堂', station:'国会議事堂前', category:'文化・施設' },
+  { name:'迎賓館赤坂離宮', station:'四ツ谷', category:'文化・施設' },
+  { name:'東京ミッドタウン', station:'六本木', category:'買い物' },
+  { name:'六本木ヒルズ', station:'六本木', category:'展望・街歩き' },
+  { name:'国立新美術館', station:'乃木坂', category:'文化・施設' },
+  { name:'東京シティビュー', station:'六本木', category:'展望・街歩き' },
+  { name:'明治神宮', station:'明治神宮前', category:'寺社・歴史' },
+  { name:'表参道', station:'表参道', category:'買い物' },
+  { name:'渋谷スクランブル交差点', station:'渋谷', category:'展望・街歩き' },
+  { name:'東京国立博物館', station:'上野', category:'文化・施設' },
+  { name:'サンシャインシティ', station:'東池袋', category:'レジャー' },
+  { name:'東京芸術劇場', station:'池袋', category:'文化・施設' },
+  { name:'雑司が谷鬼子母神堂', station:'雑司が谷', category:'寺社・歴史' },
+  { name:'六義園', station:'駒込', category:'公園・庭園' },
+  { name:'旧古河庭園', station:'西ヶ原', category:'公園・庭園' },
+  { name:'新宿御苑', station:'新宿三丁目', category:'公園・庭園' },
+  { name:'東京都庁', station:'都庁前', category:'展望・街歩き' }
+];
+
 // 駅名 → その駅を通る路線 ID リスト
 const stationLines = {};
 LINES.forEach(l => {
@@ -849,9 +889,38 @@ document.addEventListener('DOMContentLoaded', () => {
   const destinationClearBtn = document.getElementById('destination-clear-btn');
   const searchBtn = document.getElementById('search-btn');
   const resultsEl = document.getElementById('results');
+  const touristSpotList = document.getElementById('tourist-spot-list');
 
   setupStationInput(departureInput, departureSuggestions, departureClearBtn);
   setupStationInput(destinationInput, destinationSuggestions, destinationClearBtn);
+  renderTouristSpots();
+
+  function renderTouristSpots() {
+    TOURIST_SPOTS.forEach(spot => {
+      if (!allStationNames.includes(spot.station)) return;
+
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'tourist-spot-button';
+      button.setAttribute('aria-label', spot.name + 'の最寄り駅「' + spot.station + '」を到着駅に設定');
+
+      const name = document.createElement('span');
+      name.className = 'tourist-spot-name';
+      name.textContent = spot.name;
+
+      const station = document.createElement('span');
+      station.className = 'tourist-spot-station';
+      station.textContent = spot.station + '駅';
+
+      button.append(name, station);
+      button.addEventListener('click', () => {
+        destinationInput.value = spot.station;
+        destinationSuggestions.classList.remove('open');
+        destinationInput.focus();
+      });
+      touristSpotList.appendChild(button);
+    });
+  }
 
   function setupStationInput(input, suggestions, clearBtn) {
     let focusedIdx = -1;
