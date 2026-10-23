@@ -1,0 +1,8 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^node -e \"\\(async\\(\\)=>\\{const u=new URL\\('https://nominatim\\.openstreetmap\\.org/search'\\);u\\.search=new URLSearchParams\\(\\{q:'両国駅 東京都',format:'jsonv2',limit:'10',countrycodes:'jp',namedetails:'1'\\}\\);const r=await fetch\\(u,\\{headers:\\{'User-Agent':'route_navi-readonly/1\\.0 \\(local research query\\)'\\}\\}\\);if\\(!r\\.ok\\)throw new Error\\('HTTP '\\+r\\.status\\);const a=await r\\.json\\(\\);for\\(const x of a\\)console\\.log\\(JSON\\.stringify\\(\\{display_name:x\\.display_name,lat:x\\.lat,lon:x\\.lon,type:x\\.type,category:x\\.category,name:x\\.namedetails&&x\\.namedetails\\.name\\},null,2\\)\\);\\}\\)\\(\\)\\.catch\\(e=>\\{console\\.error\\(e\\);process\\.exit\\(1\\)\\}\\)\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

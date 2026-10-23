@@ -816,6 +816,87 @@ function buildGraph() {
 
 const graph = buildGraph();
 
+// ---------- 住所から最寄りの対応駅を取得 ----------
+function normalizeStationName(name) {
+  return name.replace(/駅$/, '').replace(/ヶ/g, 'ケ');
+}
+
+function getDistanceMeters(fromLat, fromLon, toLat, toLon) {
+  const latitudeDistance = (toLat - fromLat) * 111000;
+  const longitudeDistance = (toLon - fromLon) * 91000;
+  return Math.hypot(latitudeDistance, longitudeDistance);
+}
+
+async function searchAddress(place) {
+  const response = await fetch(
+    'https://msearch.gsi.go.jp/address-search/AddressSearch?q=' + encodeURIComponent(place)
+  );
+  if (!response.ok) throw new Error('住所を検索できませんでした');
+
+  const locations = await response.json();
+  if (!locations.length) throw new Error('住所が見つかりませんでした');
+  return locations;
+}
+
+async function getStationLocation(station) {
+  const response = await fetch('/api/station-location', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body:JSON.stringify({ station })
+  });
+  if (!response.ok) throw new Error('駅の位置を検索できませんでした');
+  return response.json();
+}
+
+async function resolveStation(place) {
+  if (allStationNames.includes(place)) return { station:place, walkingTime:0 };
+
+  const stationInAddress = allStationNames
+    .filter(name => name !== '東京' && name.length >= 2 && place.includes(name))
+    .sort((a, b) => b.length - a.length)[0];
+  const locations = await searchAddress(place);
+
+  const [lon, lat] = locations[0].geometry.coordinates;
+  if (stationInAddress) {
+    const stationLocation = await getStationLocation(stationInAddress);
+    const distance = getDistanceMeters(lat, lon, stationLocation.lat, stationLocation.lon);
+    return {
+      station:stationInAddress,
+      walkingTime:Math.max(1, Math.ceil(distance / 80)),
+      walking:{ lat, lon, stationLat:stationLocation.lat, stationLon:stationLocation.lon }
+    };
+  }
+
+  const stationResponse = await fetch('/api/nearby-stations', {
+    method:'POST',
+    headers:{ 'Content-Type':'application/json' },
+    body:JSON.stringify({ lat, lon })
+  });
+  if (!stationResponse.ok) throw new Error('最寄り駅を検索できませんでした');
+
+  const stations = await stationResponse.json();
+  const matchedStations = stations.elements
+    .map(station => {
+      const stationLat = station.lat ?? station.center?.lat;
+      const stationLon = station.lon ?? station.center?.lon;
+      const name = normalizeStationName(station.tags?.name || '');
+      const matchedName = allStationNames.find(candidate => normalizeStationName(candidate) === name);
+      if (stationLat == null || stationLon == null || !matchedName) return null;
+
+      return { name:matchedName, lat:stationLat, lon:stationLon, distance:getDistanceMeters(lat, lon, stationLat, stationLon) };
+    })
+    .filter(Boolean)
+    .sort((a, b) => a.distance - b.distance);
+  const matchedStation = matchedStations[0]?.name;
+  if (!matchedStation) throw new Error('対応する最寄り駅が見つかりませんでした');
+
+  return {
+    station:matchedStation.name,
+    walkingTime:Math.max(1, Math.ceil(matchedStation.distance / 80)),
+    walking:{ lat, lon, stationLat:matchedStation.lat, stationLon:matchedStation.lon }
+  };
+}
+
 // ---------- Dijkstra ----------
 function dijkstra(start, goals) {
   const dist = {};
@@ -1101,23 +1182,33 @@ document.addEventListener('DOMContentLoaded', () => {
   // 検索実行
   searchBtn.addEventListener('click', doSearch);
 
-  function doSearch() {
+  async function doSearch() {
     const departure = departureInput.value.trim();
     const destination = destinationInput.value.trim();
     if (!departure) {
-      showError('出発駅を入力してください');
+      showError('出発地を入力してください');
       return;
     }
     if (!destination) {
-      showError('到着駅を入力してください');
+      showError('到着地を入力してください');
       return;
     }
-    if (!allStationNames.includes(departure) || !allStationNames.includes(destination)) {
-      showError('出発駅・到着駅は候補から選択してください。');
-      return;
+
+    searchBtn.disabled = true;
+    searchBtn.textContent = '住所を確認中...';
+    try {
+      const [departureResult, destinationResult] = await Promise.all([
+        resolveStation(departure),
+        resolveStation(destination)
+      ]);
+      const routes = findRoutes(departureResult.station, destinationResult.station);
+      renderResults(routes, departureResult, destinationResult);
+    } catch (error) {
+      showError(error.message || '住所または最寄り駅を確認できませんでした');
+    } finally {
+      searchBtn.disabled = false;
+      searchBtn.textContent = '経路を検索';
     }
-    const routes = findRoutes(departure, destination);
-    renderResults(routes, departure, destination);
   }
 
   function showError(msg) {
@@ -1125,8 +1216,12 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   // ---------- 結果表示 ----------
-  function renderResults(routes, departure, destination) {
+  function renderResults(routes, departureResult, destinationResult) {
     resultsEl.innerHTML = '';
+
+    const departure = departureResult.station;
+    const destination = destinationResult.station;
+    const walkingTime = departureResult.walkingTime + destinationResult.walkingTime;
 
     if (routes.length === 0) {
       showError('経路が見つかりませんでした');
@@ -1179,7 +1274,7 @@ document.addEventListener('DOMContentLoaded', () => {
           const button = document.createElement('button');
           button.type = 'button';
           button.className = 'map-switch-btn' + (index === 0 ? ' active' : '');
-          button.textContent = (index === 0 ? '最短 ' : 'ルート ' + (index + 1) + ' ') + route.totalTime + '分';
+          button.textContent = (index === 0 ? '最短 ' : 'ルート ' + (index + 1) + ' ') + (route.totalTime + walkingTime) + '分';
           button.addEventListener('click', () => {
             currentMap.svg.remove();
             currentMap = createZoomableRouteMap(route.segments, destination, departure);
@@ -1216,7 +1311,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       const time = document.createElement('span');
       time.className = 'route-time';
-      time.innerHTML = '<strong>' + route.totalTime + '</strong>分';
+      time.innerHTML = '<strong>' + (route.totalTime + walkingTime) + '</strong>分';
 
       const transfers = document.createElement('span');
       transfers.className = 'route-transfers';
@@ -1235,6 +1330,8 @@ document.addEventListener('DOMContentLoaded', () => {
       // タイムライン
       const timeline = document.createElement('div');
       timeline.className = 'timeline';
+
+      if (departureResult.walkingTime > 0) appendTimelineWalk(timeline, departureResult.walkingTime, '最寄り駅まで');
 
       if (route.sameStation) {
         appendTimelineStation(timeline, departure, null, true);
@@ -1270,6 +1367,8 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
       }
+
+      if (destinationResult.walkingTime > 0) appendTimelineWalk(timeline, destinationResult.walkingTime, '目的地まで');
 
       card.appendChild(timeline);
       cardsList.appendChild(card);
