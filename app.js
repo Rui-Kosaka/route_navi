@@ -133,6 +133,10 @@ const LINES = [
   }
 ];
 
+LINES.forEach(line => {
+  line.stations = line.stations.map(station => station.trim());
+});
+
 // ---------- 乗り換えグループ ----------
 // 同一駅・隣接駅で乗り換え可能な組み合わせ
 // entries: [[lineId, stationName], ...], time: 乗り換え所要分
@@ -817,10 +821,7 @@ function buildGraph() {
 const graph = buildGraph();
 
 // ---------- 住所から最寄りの対応駅を取得 ----------
-function normalizeStationName(name) {
-  return name.replace(/駅$/, '').replace(/ヶ/g, 'ケ');
-}
-
+// Overpass等の外部検索APIには依存せず、事前収集した静的座標（station-coordinates.json）で判定する
 function getDistanceMeters(fromLat, fromLon, toLat, toLon) {
   const latitudeDistance = (toLat - fromLat) * 111000;
   const longitudeDistance = (toLon - fromLon) * 91000;
@@ -838,27 +839,30 @@ async function searchAddress(place) {
   return locations;
 }
 
-async function getStationLocation(station) {
-  const response = await fetch('/api/station-location', {
-    method:'POST',
-    headers:{ 'Content-Type':'application/json' },
-    body:JSON.stringify({ station })
-  });
-  if (!response.ok) throw new Error('駅の位置を検索できませんでした');
-  return response.json();
+let stationCoordinatesPromise = null;
+async function getStationCoordinates() {
+  if (!stationCoordinatesPromise) {
+    stationCoordinatesPromise = fetch('station-coordinates.json').then(response => {
+      if (!response.ok) throw new Error('駅の位置データを読み込めませんでした');
+      return response.json();
+    });
+  }
+  return stationCoordinatesPromise;
 }
 
 async function resolveStation(place) {
   if (allStationNames.includes(place)) return { station:place, walkingTime:0 };
 
+  const stationCoordinates = await getStationCoordinates();
   const stationInAddress = allStationNames
     .filter(name => name !== '東京' && name.length >= 2 && place.includes(name))
     .sort((a, b) => b.length - a.length)[0];
   const locations = await searchAddress(place);
-
   const [lon, lat] = locations[0].geometry.coordinates;
+
   if (stationInAddress) {
-    const stationLocation = await getStationLocation(stationInAddress);
+    const stationLocation = stationCoordinates[stationInAddress];
+    if (!stationLocation) throw new Error('対応する駅の位置が見つかりませんでした');
     const distance = getDistanceMeters(lat, lon, stationLocation.lat, stationLocation.lon);
     return {
       station:stationInAddress,
@@ -867,33 +871,17 @@ async function resolveStation(place) {
     };
   }
 
-  const stationResponse = await fetch('/api/nearby-stations', {
-    method:'POST',
-    headers:{ 'Content-Type':'application/json' },
-    body:JSON.stringify({ lat, lon })
-  });
-  if (!stationResponse.ok) throw new Error('最寄り駅を検索できませんでした');
-
-  const stations = await stationResponse.json();
-  const matchedStations = stations.elements
-    .map(station => {
-      const stationLat = station.lat ?? station.center?.lat;
-      const stationLon = station.lon ?? station.center?.lon;
-      const name = normalizeStationName(station.tags?.name || '');
-      const matchedName = allStationNames.find(candidate => normalizeStationName(candidate) === name);
-      if (stationLat == null || stationLon == null || !matchedName) return null;
-
-      return { name:matchedName, lat:stationLat, lon:stationLon, distance:getDistanceMeters(lat, lon, stationLat, stationLon) };
-    })
-    .filter(Boolean)
-    .sort((a, b) => a.distance - b.distance);
-  const matchedStation = matchedStations[0]?.name;
-  if (!matchedStation) throw new Error('対応する最寄り駅が見つかりませんでした');
+  let nearest = null;
+  for (const [name, location] of Object.entries(stationCoordinates)) {
+    const distance = getDistanceMeters(lat, lon, location.lat, location.lon);
+    if (!nearest || distance < nearest.distance) nearest = { name, distance, location };
+  }
+  if (!nearest) throw new Error('対応する最寄り駅が見つかりませんでした');
 
   return {
-    station:matchedStation.name,
-    walkingTime:Math.max(1, Math.ceil(matchedStation.distance / 80)),
-    walking:{ lat, lon, stationLat:matchedStation.lat, stationLon:matchedStation.lon }
+    station:nearest.name,
+    walkingTime:Math.max(1, Math.ceil(nearest.distance / 80)),
+    walking:{ lat, lon, stationLat:nearest.location.lat, stationLon:nearest.location.lon }
   };
 }
 

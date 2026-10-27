@@ -380,6 +380,42 @@ body {
 .tourist-spot-list::-webkit-scrollbar { width: 6px; }
 .tourist-spot-list::-webkit-scrollbar-thumb { background: #c8cdd4; border-radius: 3px; }
 
+/* ---------- Site About ---------- */
+.site-about {
+  border-top: 1px solid var(--border);
+  margin-top: 16px;
+  padding-top: 14px;
+}
+.site-about summary {
+  color: var(--navy);
+  cursor: pointer;
+  font-size: .88rem;
+  font-weight: 600;
+}
+.site-about-content {
+  color: var(--text-sub);
+  font-size: .75rem;
+  line-height: 1.65;
+  padding: 10px 0 2px;
+}
+.site-about-content p + p {
+  margin-top: 8px;
+}
+.site-about-heading {
+  color: var(--text);
+  font-weight: 600;
+}
+.site-about-content ul {
+  display: grid;
+  gap: 2px;
+  margin: 4px 0 0 18px;
+}
+.site-about-note {
+  border-top: 1px solid var(--border);
+  font-size: .7rem;
+  padding-top: 8px;
+}
+
 /* ---------- Arrow between input and dest ---------- */
 .arrow-divider {
   display: flex;
